@@ -34,7 +34,13 @@ pub fn run() {
             let handle = app.handle().clone();
             let state = init_state(&handle)?;
             app.manage(state);
+            #[cfg(desktop)]
+            app::tray::init(app.handle())?;
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            #[cfg(desktop)]
+            app::tray::handle_window_event(window, event);
         })
         .invoke_handler(tauri::generate_handler![
             app::commands::get_snapshot,

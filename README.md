@@ -95,12 +95,64 @@ npm run dev
 cargo tauri build
 ```
 
-The build first runs `npm run build` (TypeScript compile + Vite build into `dist/`), then compiles the Rust binary in release mode. Output lands under `src-tauri/target/release/`:
+The build first runs `npm run build` (TypeScript compile + Vite build into `dist/`), then compiles the Rust binary in release mode. Output lands under the root Cargo workspace at `target/release/`:
 
-- `src-tauri/target/release/llamadesk` — the standalone executable.
-- `src-tauri/target/release/bundle/` — installer artifacts. `tauri.conf.json` sets `bundle.targets` to `"all"`, so on Ubuntu/Debian this produces the platform-supported `.deb`, `.rpm`, and `.AppImage` bundles (the exact set depends on the host's bundling tools).
+- `target/release/llamadesk` — the standalone executable.
+- `target/release/bundle/` — installer artifacts. `tauri.conf.json` sets `bundle.targets` to `"all"`, so on Ubuntu/Debian this produces the platform-supported `.deb`, `.rpm`, and `.AppImage` bundles (the exact set depends on the host's bundling tools — RPM bundling requires `rpmbuild`).
 
 > **Note on the CLI:** the Tauri CLI is not declared as an npm dependency in this project, so `npm run tauri ...` is not available. Use `cargo tauri ...` (or install the npm CLI with `npm install --save-dev @tauri-apps/cli` if you prefer `npx tauri ...`).
+
+### Install / deploy
+
+For a repeatable local build and install the repository ships helper scripts and a `Makefile`. `make help` lists every target.
+
+Quick path — per-user install, no sudo:
+
+```bash
+make build          # frontend + app; produces deb + AppImage on Debian-family
+make install-user   # installs under ~/.local
+```
+
+#### `scripts/build.sh`
+
+Builds the frontend (`npm run build`) and the application (`cargo tauri build`). On Debian/Ubuntu it bundles `deb,appimage` by default; other distributions default to `appimage`, so the build does not fail when `rpmbuild` is missing. Override the set with `--bundles` or build everything with `--all`:
+
+```bash
+scripts/build.sh                    # deb + AppImage on Debian-family
+scripts/build.sh --bundles deb      # just the .deb
+scripts/build.sh --all              # deb + rpm + AppImage (needs rpmbuild)
+```
+
+Artifacts land under `target/release/` (the root Cargo workspace) and `target/release/bundle/{deb,rpm,appimage}/`. The script prints each artifact path with its size and fails if the binary was not produced.
+
+#### `scripts/install.sh`
+
+Installs from a built artifact and writes an XDG `.desktop` entry plus icon.
+
+```bash
+scripts/install.sh --user                            # ~/.local (default), no sudo
+scripts/install.sh --system                          # /opt/llamadesk + /usr/local/bin launcher (sudo)
+scripts/install.sh --user --prefix /opt/llamadesk    # custom prefix
+scripts/install.sh --dry-run                         # show what would happen, change nothing
+```
+
+Payload preference: an existing `.deb` (installed with `dpkg -i` for a system install, or extracted and relocated for `--user` and custom prefixes), else the built AppImage, else the plain binary. The installer is idempotent, validates and refreshes the desktop database when `desktop-file-validate` and `update-desktop-database` are present (it says so and skips otherwise), and never deletes your data or restarts a running server.
+
+**Tray dependency:** the system tray needs `libayatana-appindicator3`. The installer checks for the WebKitGTK 4.1 / GTK 3 / libsoup 3 / appindicator shared libraries and, if any are missing, warns without failing:
+
+```bash
+sudo apt install libwebkit2gtk-4.1-0 libgtk-3-0 libsoup-3.0-0 libayatana-appindicator3-1
+```
+
+#### Uninstall
+
+```bash
+scripts/uninstall.sh --user            # remove a user install
+scripts/uninstall.sh --system          # remove a system install
+scripts/uninstall.sh --user --purge    # also delete settings + history
+```
+
+Uninstall removes exactly what the installer created (binary/launcher, `.desktop`, icon) and refreshes the desktop database. Your settings (`~/.config/com.llamadesk.app/`) and history (`~/.local/share/com.llamadesk.app/`) are kept unless you pass `--purge`. It is safe to run when nothing is installed.
 
 ## Usage
 

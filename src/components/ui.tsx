@@ -163,8 +163,11 @@ export interface NullableProps<T> {
   render: (value: T) => ReactNode
 }
 
-/** Renders `render(value)` when non-null, otherwise the em-dash placeholder. */
+/**
+ * Renders `render(value)` when the value is present, otherwise the em-dash
+ * placeholder. Both `null` and `undefined` are treated as absent.
+ */
 export function Nullable<T>({ value, render }: NullableProps<T>): ReactNode {
-  if (value === null) return <span className="muted">{PLACEHOLDER}</span>
+  if (value == null) return <span className="muted">{PLACEHOLDER}</span>
   return render(value)
 }

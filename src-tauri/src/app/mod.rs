@@ -7,5 +7,7 @@
 pub mod commands;
 pub mod monitor;
 pub mod state;
+#[cfg(desktop)]
+pub mod tray;
 
 pub use state::AppState;
