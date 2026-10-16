@@ -13,3 +13,14 @@
 
 # logs
 *.log
+
+# test coverage
+/coverage/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# local env / secrets — never commit real secrets; .env.example is the template
+.env
+.env.*
+!.env.example
