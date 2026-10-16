@@ -1,0 +1,15 @@
+/target
+/node_modules
+/dist
+/src-tauri/target
+*.db
+*.db-shm
+*.db-wal
+
+# IDE / agent tooling
+.idea/
+.junie/
+.opencode/
+
+# logs
+*.log
