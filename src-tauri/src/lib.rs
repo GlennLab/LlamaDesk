@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use tauri::Manager;
+use tokio::time::{Duration, sleep};
 
 use crate::app::monitor::MonitorService;
 use crate::app::state::{AppState, ProviderFactory};
@@ -31,11 +32,33 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            #[cfg(desktop)]
+            {
+                let handle = app.handle().clone();
+                match app::tray::init(&handle) {
+                    Ok(()) => log::info!("tray: initialized"),
+                    Err(error) => {
+                        log::warn!(
+                            "tray: initial creation failed ({error}); retrying in background"
+                        );
+                        let handle_for_task = handle.clone();
+                        tauri::async_runtime::spawn(async move {
+                            for attempt in 1..=6 {
+                                match app::tray::init(&handle_for_task) {
+                                    Ok(()) => break,
+                                    Err(error) => {
+                                        log::warn!("tray: retry {attempt} failed ({error})")
+                                    }
+                                }
+                                sleep(Duration::from_secs(2)).await;
+                            }
+                        });
+                    }
+                }
+            }
             let handle = app.handle().clone();
             let state = init_state(&handle)?;
             app.manage(state);
-            #[cfg(desktop)]
-            app::tray::init(app.handle())?;
             Ok(())
         })
         .on_window_event(|window, event| {
