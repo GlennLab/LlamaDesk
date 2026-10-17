@@ -1,0 +1,48 @@
+name: Feature request
+description: Suggest an improvement or new capability for LlamaDesk
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion.
+
+        The most important thing to address is the **read-only product constraint**:
+        LlamaDesk is a read-only monitoring dashboard. It never writes to the
+        llama.cpp server, never opens a new listening port, and the frontend never
+        talks to the server directly — all traffic goes through the Rust backend to
+        the single configured server URL.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: The user need or pain point this feature addresses.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: true
+
+  - type: dropdown
+    id: read-only-fit
+    attributes:
+      label: Does this fit the read-only product constraint?
+      options:
+        - "Yes — it only reads or monitors"
+        - "No — it would require writing to the server or a new outbound target"
+        - "Not sure"
+    validations:
+      required: true

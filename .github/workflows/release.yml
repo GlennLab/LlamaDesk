@@ -1,0 +1,96 @@
+# Cutting a release
+# ----------------
+# 1. Tag the commit to release and push the tag:
+#       git tag v0.1.0 && git push origin v0.1.0
+# 2. The tag push triggers this workflow, which builds the deb/rpm/AppImage
+#    bundles and attaches them to a DRAFT GitHub Release.
+# 3. Review the artifacts, then publish the draft MANUALLY:
+#       https://github.com/GlennLab/LlamaDesk/releases
+#
+# No signing keys or updater keys are used anywhere in this workflow; the
+# artifacts are plain, unsigned bundles. This project has no auto-updater.
+# Tauri v2 produces RPMs with its own pure-Rust packager, so `rpmbuild` is not
+# required. libfuse2 is installed because the AppImage needs it on 22.04.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  # Manual runs are kept so a specific tag can be re-released from the CLI, e.g.
+  #   gh workflow run release.yml --ref v0.1.0
+  # Dispatching from a branch is a harmless no-op: the job-level `if:` below
+  # skips it, because on a branch github.ref_name is the branch name, not a tag.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build bundles and draft release
+    runs-on: ubuntu-22.04
+    # Only ever release from a tag ref. On a branch, github.ref_name is the
+    # branch name (e.g. "master"), which would create a bogus "master" release.
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libgtk-3-dev \
+            libsoup-3.0-dev \
+            libsqlite3-dev \
+            libssl-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            pkg-config \
+            libayatana-appindicator3-dev \
+            libfuse2
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          # Cargo workspace root is the repo root; the src-tauri member shares
+          # the root target/ directory (there is no separate src-tauri/target).
+          workspaces: ". -> target"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      # Tauri's beforeBuildCommand ("npm run build") builds the frontend, so the
+      # npm dependencies must be installed before the action runs.
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # tauri-action drives the npm-installed @tauri-apps/cli via the "tauri"
+      # npm script. Setting tauriScript explicitly keeps the invocation
+      # deterministic: `${tauriScript} build <args>` becomes
+      # `npm run tauri build -- --bundles deb,rpm,appimage`.
+      - name: Build and draft release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tauriScript: npm run tauri
+          tagName: ${{ github.ref_name }}
+          releaseName: "LlamaDesk ${{ github.ref_name }}"
+          releaseDraft: true
+          prerelease: false
+          # No updater manifest is generated (there is no auto-updater).
+          includeUpdaterJson: false
+          releaseBody: 'Linux bundles (.deb, .rpm, .AppImage) — see the assets below.'
+          args: --bundles deb,rpm,appimage

@@ -1,0 +1,131 @@
+name: Bug report
+description: Report a problem with LlamaDesk
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report.
+
+        **Never paste secrets, API keys, tokens, or credentials in this issue.**
+        LlamaDesk does not need them, and everything posted here is public.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behaviour
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: LlamaDesk version or commit
+      description: The release version you are running, or the output of `git rev-parse --short HEAD` for a source build.
+      placeholder: e.g. 0.1.0 or a1b2c3d
+    validations:
+      required: true
+
+  - type: input
+    id: distro
+    attributes:
+      label: Linux distribution
+      placeholder: e.g. Ubuntu 22.04, Fedora 41, Arch Linux
+    validations:
+      required: true
+
+  - type: input
+    id: desktop-environment
+    attributes:
+      label: Desktop environment
+      placeholder: e.g. GNOME 46, KDE Plasma 6, XFCE
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: How are you running LlamaDesk?
+      options:
+        - Installed bundle (deb / rpm / AppImage)
+        - Built from source (`cargo tauri dev`)
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: nvidia-smi
+    attributes:
+      label: Does `nvidia-smi` work on this machine?
+      options:
+        - "Yes"
+        - "No"
+        - "N/A (no NVIDIA GPU)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: server-reachable
+    attributes:
+      label: Is the configured llama.cpp server reachable?
+      description: For example, can you open the configured server URL in a browser or `curl` it from this machine?
+      options:
+        - "Yes"
+        - "No"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: textarea
+    id: nvidia-smi-l
+    attributes:
+      label: NVIDIA GPU inventory (`nvidia -smi -L`)
+      description: |
+        Output of `nvidia -smi -L`, listing the GPUs and their UUIDs on this machine.
+        Leave empty if you have no NVIDIA GPU or `nvidia-smi` is unavailable.
+      render_markdown: false
+    validations:
+      required: false
+
+  - type: input
+    id: llama-server
+    attributes:
+      label: llama.cpp server version and role
+      description: |
+        The server's reported version and its role, e.g. main model, speculative draft
+        model, or embeddings encoder — from the server startup log or `--version`.
+      placeholder: e.g. llava-v1.6-vicuna-7b / main server on port 1234
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before submitting
+      options:
+        - label: >-
+            I am **not** reporting a Dashboard status of `Disconnected` without first
+            checking my configured server URL. A `Disconnected` badge when the llama.cpp
+            server is unreachable or misconfigured is expected behaviour and is documented
+            in the README troubleshooting section.
+          required: true

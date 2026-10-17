@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust (fmt, clippy, test)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # WebKitGTK 4.1 is required by Tauri 2; the standard runner image ships
+      # 4.0, so the 4.1 development packages are installed explicitly.
+      # libayatana-appindicator3-dev is required because src-tauri/Cargo.toml
+      # enables the `tray-icon` Tauri feature.
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libgtk-3-dev \
+            libsoup-3.0-dev \
+            libsqlite3-dev \
+            libssl-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            pkg-config \
+            libayatana-appindicator3-dev
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          # Cargo workspace root is the repo root; the src-tauri member shares
+          # the root target/ directory (there is no separate src-tauri/target).
+          workspaces: ". -> target"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # tauri-build validates frontendDist ("../dist") at compile time, so the
+      # frontend MUST be built before any cargo step runs.
+      - name: Build frontend (produces dist/)
+        run: npm run build
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      # `cargo test` skips #[ignore]d tests, so the live-router tests that need
+      # a real llama.cpp server are not run here.
+      - name: Test
+        run: cargo test
+
+  frontend:
+    name: Frontend (vitest, build)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm run test:run
+
+      - name: Build
+        run: npm run build

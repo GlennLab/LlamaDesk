@@ -1,0 +1,13 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Readme
+    url: https://github.com/GlennLab/LlamaDesk/blob/master/README.md
+    about: Installation, requirements, architecture, and usage.
+
+  - name: Troubleshooting
+    url: https://github.com/GlennLab/LlamaDesk/blob/master/README.md#troubleshooting
+    about: Common problems, including a Dashboard showing "Disconnected".
+
+  - name: Report a security vulnerability
+    url: https://github.com/GlennLab/LlamaDesk/security/advisories/new
+    about: Please report vulnerabilities privately via GitHub Security Advisories.
