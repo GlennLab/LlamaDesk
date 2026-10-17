@@ -1,5 +1,5 @@
 // Thin, typed wrapper over the Tauri IPC boundary.
-// Command and event names are frozen by the project contract.
+// Command and event names are a frozen public contract shared with the backend.
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type {

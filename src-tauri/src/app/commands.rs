@@ -1,9 +1,9 @@
 //! Tauri commands exposed to the frontend.
 //!
 //! Every command returns a serializable value or a `String` error, as required
-//! by Tauri's `invoke` bridge. Command names and argument names match the
-//! frozen frontend/backend contract (`contract.md`): the function name is the
-//! invoke name verbatim, and `rename_all = "camelCase"` maps snake_case
+//! by Tauri's `invoke` bridge. Command names, argument names and return shapes
+//! form a deliberately frozen contract the frontend mirrors: the function name
+//! is the invoke name verbatim, and `rename_all = "camelCase"` maps snake_case
 //! parameters to the camelCase keys the frontend sends.
 
 use std::sync::Arc;

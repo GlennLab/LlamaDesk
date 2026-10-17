@@ -1,10 +1,40 @@
 # LlamaDesk
 
+[![CI](https://github.com/GlennLab/LlamaDesk/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/GlennLab/LlamaDesk/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/GlennLab/LlamaDesk?sort=semver)](https://github.com/GlennLab/LlamaDesk/releases)
+[![License: MIT-0](https://img.shields.io/badge/license-MIT-0-blue.svg)](./LICENSE)
+[![Platform: Linux](https://img.shields.io/badge/platform-Linux-lightgrey.svg)](#requirements)
+[![Rust 1.90+](https://img.shields.io/badge/rust-1.90%2B-orange.svg)](#toolchains)
+
 LlamaDesk is a desktop application that **monitors** a local [llama.cpp](https://github.com/ggml-org/llama.cpp) inference server and, optionally, the NVIDIA GPUs on the same machine. It presents live server status, the dynamic list of models and their slots, per-model performance metrics, GPU telemetry, and locally stored history in a single window.
 
 LlamaDesk is a **read-only observer**. It never starts, stops, or reconfigures an inference server, and it never binds a network interface. All HTTP requests to the server are made by the Rust backend; the webview never talks to the server directly. If the server is not running, LlamaDesk simply reports that it is unreachable and keeps the last data it has.
 
 Built with [Tauri 2](https://v2.tauri.app/) (Rust backend + React/TypeScript frontend) and SQLite for history.
+
+## Table of Contents
+
+- [Features](#features)
+- [Screenshots](#screenshots)
+- [Requirements](#requirements)
+  - [The inference server](#the-inference-server)
+- [Install & build](#install--build)
+  - [Development](#development)
+  - [Production bundle](#production-bundle)
+  - [Install / deploy](#install--deploy)
+- [Usage](#usage)
+  - [Dashboard](#dashboard)
+  - [Slots](#slots)
+  - [Performance](#performance)
+  - [Hardware](#hardware)
+  - [Settings](#settings)
+  - [Where history is stored](#where-history-is-stored)
+- [Architecture](#architecture)
+- [Compatibility / behaviour notes](#compatibility--behaviour-notes)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development-1)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Features
 
@@ -22,6 +52,8 @@ Built with [Tauri 2](https://v2.tauri.app/) (Rust backend + React/TypeScript fro
 <!-- TODO: add screenshots. Do not fabricate images — capture them from a running build. -->
 
 > **Placeholder — screenshots to be added.** Capture each page from a live run and place the files under `docs/screenshots/`.
+
+See [`docs/screenshots/README.md`](./docs/screenshots/README.md) for the capture checklist and `scripts/capture-screenshots.sh` for the optional helper script that captures the whole screen from a running build. No available capture backend can target a single window, so keep the LlamaDesk window visible and unobstructed — ideally maximised — when you capture each page.
 
 | Page | Screenshot |
 |------|------------|
@@ -70,7 +102,7 @@ A **running llama.cpp server or router is required for any live data**. LlamaDes
 Clone the repository and install the frontend dependencies:
 
 ```bash
-git clone <repository-url> LlamaDesk
+git clone https://github.com/GlennLab/LlamaDesk.git LlamaDesk
 cd LlamaDesk
 npm install
 ```
@@ -98,9 +130,19 @@ cargo tauri build
 The build first runs `npm run build` (TypeScript compile + Vite build into `dist/`), then compiles the Rust binary in release mode. Output lands under the root Cargo workspace at `target/release/`:
 
 - `target/release/llamadesk` — the standalone executable.
-- `target/release/bundle/` — installer artifacts. `tauri.conf.json` sets `bundle.targets` to `"all"`, so on Ubuntu/Debian this produces the platform-supported `.deb`, `.rpm`, and `.AppImage` bundles (the exact set depends on the host's bundling tools — RPM bundling requires `rpmbuild`).
+- `target/release/bundle/` — installer artifacts. `tauri.conf.json` sets `bundle.targets` to `"all"`, so on Ubuntu/Debian this produces the platform-supported `.deb`, `.rpm`, and `.AppImage` bundles. RPM bundling does **not** require `rpmbuild`, `rpm`, or any system RPM tooling: Tauri v2 builds `.rpm` packages with its own pure-Rust packager. The exact set produced depends on the host.
 
-> **Note on the CLI:** the Tauri CLI is not declared as an npm dependency in this project, so `npm run tauri ...` is not available. Use `cargo tauri ...` (or install the npm CLI with `npm install --save-dev @tauri-apps/cli` if you prefer `npx tauri ...`).
+The Tauri CLI (`@tauri-apps/cli ^2.12.3`) is pinned in devDependencies and exposed through the root `"tauri"` script, so `npm run tauri dev`, `npm run tauri build`, and other subcommands work from the repository root — equivalent to `cargo tauri dev` / `cargo tauri build`.
+
+### Install from a release
+
+Download the latest assets from the [releases page](https://github.com/GlennLab/LlamaDesk/releases):
+
+- `.AppImage`: `chmod +x LlamaDesk_*.AppImage && ./LlamaDesk_*.AppImage`
+- `.deb`: `sudo dpkg -i llamadesk_*.deb`
+- `.rpm`: `sudo rpm -i llamadesk-*.rpm` (or `dnf install ./llamadesk-*.rpm`)
+
+Release artifacts are unsigned — verify the checksums published on the release page before installing.
 
 ### Install / deploy
 
@@ -115,12 +157,12 @@ make install-user   # installs under ~/.local
 
 #### `scripts/build.sh`
 
-Builds the frontend (`npm run build`) and the application (`cargo tauri build`). On Debian/Ubuntu it bundles `deb,appimage` by default; other distributions default to `appimage`, so the build does not fail when `rpmbuild` is missing. Override the set with `--bundles` or build everything with `--all`:
+Builds the frontend (`npm run build`) and the application (`cargo tauri build`). On Debian/Ubuntu it bundles `deb,appimage` by default; other distributions default to `appimage`. RPM bundling needs no system tooling — Tauri v2 builds it with its own pure-Rust packager. Override the set with `--bundles` or build everything with `--all`:
 
 ```bash
 scripts/build.sh                    # deb + AppImage on Debian-family
 scripts/build.sh --bundles deb      # just the .deb
-scripts/build.sh --all              # deb + rpm + AppImage (needs rpmbuild)
+scripts/build.sh --all              # deb + rpm + AppImage
 ```
 
 Artifacts land under `target/release/` (the root Cargo workspace) and `target/release/bundle/{deb,rpm,appimage}/`. The script prints each artifact path with its size and fails if the binary was not produced.
@@ -229,7 +271,7 @@ Data flow: the GPU monitor and the llama.cpp client feed the application's monit
 
 ### Tauri command surface
 
-Invoke names and signatures are frozen in `the project contract`; all JSON is camelCase and missing values are `null` (never coerced to `0`).
+The invoke names and argument/return shapes form a stable, frozen public contract: all JSON is camelCase and missing values are `null` (never coerced to `0`).
 
 | Command | Arguments | Returns |
 |---------|-----------|---------|
@@ -318,6 +360,16 @@ Frontend type-check and production build:
 npm run build
 ```
 
+## Contributing
+
+Development setup, the quality gates, and the pull-request process are documented in [`CONTRIBUTING.md`](./CONTRIBUTING.md). Release history is in [`CHANGELOG.md`](./CHANGELOG.md).
+
+## Security
+
+See [`SECURITY.md`](./SECURITY.md) for the vulnerability disclosure process.
+
 ## License
 
-LlamaDesk is declared as **MIT** in the crate manifest (`src-tauri/Cargo.toml`, `license = "MIT"`). No standalone `LICENSE` file is currently included in this repository; add one before distributing the project.
+LlamaDesk is released under the **MIT License**. See [`LICENSE`](./LICENSE) for the full text.
+
+Copyright (c) 2026 LlamaDesk contributors.

@@ -1,5 +1,5 @@
 // LlamaDesk frontend contract mirror.
-// Source of truth: the project contract (frozen).
+// These types mirror the frozen backend contract and must be kept in sync with it.
 // All fields are camelCase. Missing values are `null` — never coerced to 0.
 
 /** Placeholder rendered for any missing (null) value. */
