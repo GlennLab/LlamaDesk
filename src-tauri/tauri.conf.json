@@ -26,6 +26,13 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "category": "Utility",
+    "shortDescription": "Live monitor for local llama.cpp servers and NVIDIA GPUs",
+    "longDescription": "A read-only desktop monitor for a local llama.cpp inference server and the NVIDIA GPUs on the same machine, showing live server status, models and slots, per-model performance metrics, GPU telemetry and locally stored history.",
+    "copyright": "Copyright (c) 2026 LlamaDesk contributors",
+    "publisher": "LlamaDesk contributors",
+    "homepage": "https://github.com/GlennLab/LlamaDesk",
+    "licenseFile": "../LICENSE",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

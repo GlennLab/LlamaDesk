@@ -2,9 +2,10 @@
 name = "llamadesk"
 version = "0.1.0"
 description = "A desktop monitor for local LLM inference servers"
-authors = ["LlamaDesk"]
-license = "MIT"
-repository = ""
+authors = ["LlamaDesk contributors"]
+license = "MIT-0"
+repository = "https://github.com/GlennLab/LlamaDesk"
+homepage = "https://github.com/GlennLab/LlamaDesk"
 edition = "2024"
 rust-version = "1.90"
 

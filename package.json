@@ -2,6 +2,26 @@
   "name": "llamadesk",
   "private": true,
   "version": "0.1.0",
+  "description": "A read-only desktop monitor for local llama.cpp inference servers and NVIDIA GPUs",
+  "license": "MIT-0",
+  "author": "LlamaDesk contributors",
+  "homepage": "https://github.com/GlennLab/LlamaDesk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GlennLab/LlamaDesk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/GlennLab/LlamaDesk/issues"
+  },
+  "keywords": [
+    "llama.cpp",
+    "llm",
+    "monitor",
+    "nvidia",
+    "gpu",
+    "tauri",
+    "desktop"
+  ],
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +29,8 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "tauri": "tauri"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.5.0",
@@ -20,6 +41,7 @@
     "react-router-dom": "^6.28.0"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.12.3",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.8",

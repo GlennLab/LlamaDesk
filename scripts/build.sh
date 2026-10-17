@@ -29,9 +29,8 @@ Defaults:
   Debian/Ubuntu   deb,appimage
   other Linux     appimage
 
-RPM bundling requires `rpmbuild`; when it is missing, `rpm` is left out of the
-default set so the build still succeeds. Use `--bundles rpm` only if rpmbuild
-is installed.
+RPM bundles are produced by Tauri's own pure-Rust packager and do not require
+`rpmbuild` or any system RPM tooling; select them with `--bundles rpm`.
 EOF
 }
 
@@ -82,7 +81,7 @@ if [ "$BUNDLES" != "all" ]; then
   for b in ${BUNDLES//,/ }; do
     case "$b" in
       deb) require_cmd dpkg-deb ;;
-      rpm) require_cmd rpmbuild || die "rpm bundling requires rpmbuild; drop 'rpm' or install rpm/rpm-build" ;;
+      rpm) : ;;
       appimage) : ;;
       "") die "empty bundle name in --bundles '$BUNDLES'" ;;
       *) die "unknown bundle '$b' (expected deb, rpm or appimage)" ;;
