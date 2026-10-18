@@ -4,7 +4,7 @@ import { TimelineChart } from '../components/charts'
 import type { ChartSeries } from '../components/charts'
 import { EmptyState, ErrorBanner, Loading, Panel } from '../components/ui'
 import { useHistory } from '../hooks/useMonitor'
-import { formatMiB, formatRate } from '../types'
+import { formatMiB, formatRate, type GpuSample } from '../types'
 
 const MINUTE_MS = 60_000
 const DEFAULT_RANGE_MS = 60 * MINUTE_MS
@@ -73,6 +73,16 @@ function Performance() {
   ]
 
   const gpuIndices = Array.from(new Set(gpu.samples.map((s) => s.gpuIndex))).sort((a, b) => a - b)
+
+  /** GPU samples grouped by timestamp so cross-card aggregates can be computed per tick. */
+  const gpuByTs = new Map<number, GpuSample[]>()
+  for (const s of gpu.samples) {
+    const bucket = gpuByTs.get(s.timestampMs) ?? []
+    bucket.push(s)
+    gpuByTs.set(s.timestampMs, bucket)
+  }
+  const sortedTs = [...gpuByTs.keys()].sort((a, b) => a - b)
+
   const utilizationSeries: ChartSeries[] = gpuIndices.map((idx, i) => ({
     name: `GPU ${idx}`,
     color: SERIES_COLORS[i % SERIES_COLORS.length],
@@ -80,6 +90,22 @@ function Performance() {
       .filter((s) => s.gpuIndex === idx)
       .map((s) => [s.timestampMs, s.utilizationPercent] as [number, number | null]),
   }))
+  if (gpu.samples.length > 0) {
+    utilizationSeries.push({
+      name: 'All GPUs (avg)',
+      color: '#9ca5b0',
+      data: sortedTs.map((ts) => {
+        const values = gpuByTs.get(ts)!
+          .map((s) => s.utilizationPercent)
+          .filter((v): v is number => v !== null)
+        return [
+          ts,
+          values.length > 0 ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : null,
+        ]
+      }),
+    })
+  }
+
   const vramSeries: ChartSeries[] = gpuIndices.map((idx, i) => ({
     name: `GPU ${idx}`,
     color: SERIES_COLORS[i % SERIES_COLORS.length],
@@ -87,6 +113,18 @@ function Performance() {
       .filter((s) => s.gpuIndex === idx)
       .map((s) => [s.timestampMs, s.memoryUsedMib] as [number, number | null]),
   }))
+  if (gpu.samples.length > 0) {
+    vramSeries.push({
+      name: 'Total',
+      color: '#9ca5b0',
+      data: sortedTs.map((ts) => {
+        const values = gpuByTs.get(ts)!
+          .map((s) => s.memoryUsedMib)
+          .filter((v): v is number => v !== null)
+        return [ts, values.length > 0 ? values.reduce((a, b) => a + b, 0) : null]
+      }),
+    })
+  }
 
   return (
     <div className="stack">
@@ -144,11 +182,13 @@ function Performance() {
                 title="Active requests"
                 series={activeSeries}
                 valueFormatter={(v) => v.toFixed(0)}
+                integerTicks
               />
               <TimelineChart
                 title="Deferred requests"
                 series={deferredSeries}
                 valueFormatter={(v) => v.toFixed(0)}
+                integerTicks
               />
             </div>
           ) : null}

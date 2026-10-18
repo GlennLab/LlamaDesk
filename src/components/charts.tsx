@@ -19,6 +19,8 @@ export interface TimelineChartProps {
   yAxisName?: string
   valueFormatter?: (v: number) => string
   height?: number
+  /** When true, forces whole-number ticks on the value axis (`yAxis.minInterval = 1`). */
+  integerTicks?: boolean
 }
 
 /** The subset of an axis-tooltip callback item this formatter relies on. */
@@ -54,6 +56,7 @@ export function TimelineChart({
   yAxisName,
   valueFormatter,
   height = 260,
+  integerTicks,
 }: TimelineChartProps) {
   const fmt = valueFormatter ?? ((v: number): string => String(v))
 
@@ -86,6 +89,7 @@ export function TimelineChart({
       nameTextStyle: { color: AXIS_LABEL },
       axisLabel: { color: AXIS_LABEL },
       splitLine: { lineStyle: { color: GRID_LINE } },
+      ...(integerTicks ? { minInterval: 1 } : {}),
     },
     dataZoom: [
       { type: 'inside' },
