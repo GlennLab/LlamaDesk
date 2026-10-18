@@ -32,7 +32,7 @@ describe('Settings', () => {
     // Arrange
     api.updateSettings.mockImplementation((config) => Promise.resolve(config))
     renderWithSnapshot(<Settings />, makeSnapshot())
-    const url = await screen.findByDisplayValue(DEFAULT_CONFIG.serverUrl)
+    const url = await screen.findByLabelText('Server URL')
 
     // Act
     await userEvent.clear(url)
@@ -50,7 +50,7 @@ describe('Settings', () => {
   it('should block saving and show a field error for an invalid URL', async () => {
     // Arrange
     renderWithSnapshot(<Settings />, makeSnapshot())
-    const url = await screen.findByDisplayValue(DEFAULT_CONFIG.serverUrl)
+    const url = await screen.findByLabelText('Server URL')
 
     // Act
     await userEvent.clear(url)
@@ -58,7 +58,8 @@ describe('Settings', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     // Assert
-    expect(await screen.findByText('Enter a valid URL')).toBeTruthy()
+    const errorMessages = await screen.findAllByText('Enter a valid URL')
+    expect(errorMessages.length).toBeGreaterThan(0)
     expect(api.updateSettings).not.toHaveBeenCalled()
   })
 
@@ -72,7 +73,7 @@ describe('Settings', () => {
       modelCount: 3,
     })
     renderWithSnapshot(<Settings />, makeSnapshot())
-    await screen.findByDisplayValue(DEFAULT_CONFIG.serverUrl)
+    await screen.findByLabelText('Server URL')
 
     // Act
     await userEvent.click(screen.getByRole('button', { name: 'Test connection' }))
@@ -87,12 +88,48 @@ describe('Settings', () => {
     // Arrange
     api.pruneHistory.mockResolvedValue(5)
     renderWithSnapshot(<Settings />, makeSnapshot())
-    await screen.findByDisplayValue(DEFAULT_CONFIG.serverUrl)
+    await screen.findByLabelText('Server URL')
 
     // Act
     await userEvent.click(screen.getByRole('button', { name: 'Prune history now' }))
 
     // Assert
     expect(await screen.findByText('Pruned 5 rows.')).toBeTruthy()
+  })
+
+  it('should persist the active profile, its URL, and all profiles when switching and saving', async () => {
+    // Arrange
+    api.updateSettings.mockImplementation((config) => Promise.resolve(config))
+    renderWithSnapshot(<Settings />, makeSnapshot())
+    await screen.findByLabelText('Server URL')
+
+    // Add a second profile
+    await userEvent.click(screen.getByRole('button', { name: 'Add profile' }))
+
+    // Switch the active profile to the new one
+    const activeSelect = await screen.findByLabelText('Active profile')
+    await userEvent.selectOptions(activeSelect, 'Profile 1')
+
+    // The top Server URL field now edits the active profile's URL
+    const url = await screen.findByLabelText('Server URL')
+    await userEvent.clear(url)
+    await userEvent.type(url, 'http://example.test:9999')
+
+    // Act
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    // Assert
+    await waitFor(() => expect(api.updateSettings).toHaveBeenCalledTimes(1))
+    expect(api.updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        serverUrl: 'http://example.test:9999',
+        activeProfile: 'Profile 1',
+        profiles: expect.arrayContaining([
+          { name: 'Default', serverUrl: 'http://localhost:8080' },
+          { name: 'Profile 1', serverUrl: 'http://example.test:9999' },
+        ]),
+      }),
+    )
+    expect(await screen.findByText('Settings saved.')).toBeTruthy()
   })
 })

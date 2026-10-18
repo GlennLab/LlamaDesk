@@ -209,7 +209,7 @@ mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     use super::*;
-    use crate::infra::config::MIN_SERVER_INTERVAL_MS;
+    use crate::infra::config::{MIN_SERVER_INTERVAL_MS, ServerProfile};
 
     /// Returns a unique path inside the system temp directory whose parent does
     /// not exist yet.
@@ -228,7 +228,11 @@ mod tests {
         let path = temp_config_path();
         let state = AppState::for_test(path.clone(), None);
         let invalid = AppConfig {
-            server_url: "not a url".to_string(),
+            profiles: vec![ServerProfile {
+                name: "Default".to_string(),
+                server_url: "not a url".to_string(),
+            }],
+            active_profile: "Default".to_string(),
             ..AppConfig::default()
         };
 
@@ -241,15 +245,21 @@ mod tests {
         let path = temp_config_path();
         let state = AppState::for_test(path.clone(), None);
         let valid = AppConfig {
-            server_url: "http://example.com:1234".to_string(),
+            profiles: vec![ServerProfile {
+                name: "Default".to_string(),
+                server_url: "http://example.com:1234".to_string(),
+            }],
+            active_profile: "Default".to_string(),
             server_interval_ms: 1,
             ..AppConfig::default()
         };
 
         let applied = state.apply_config(valid).expect("valid config");
 
-        // Validation clamps the below-floor interval.
+        // Validation clamps the below-floor interval and normalises server_url to
+        // the active profile's URL.
         assert_eq!(applied.server_interval_ms, MIN_SERVER_INTERVAL_MS);
+        assert_eq!(applied.server_url, "http://example.com:1234");
         assert_eq!(state.current_config().server_url, "http://example.com:1234");
         assert_eq!(AppConfig::load(&path).server_url, "http://example.com:1234");
     }

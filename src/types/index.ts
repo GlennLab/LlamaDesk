@@ -181,9 +181,17 @@ export interface MonitorSnapshot {
 // Settings & diagnostics
 // ---------------------------------------------------------------------------
 
+/** A named server endpoint the user can switch between in Settings. */
+export interface ServerProfile {
+  name: string
+  serverUrl: string
+}
+
 /** Persisted application configuration. */
 export interface AppConfig {
   serverUrl: string
+  profiles: ServerProfile[]
+  activeProfile: string
   serverIntervalMs: number
   slotsIntervalMs: number
   hardwareIntervalMs: number
@@ -203,6 +211,8 @@ export interface ConnectionTest {
 /** Configuration used until settings have loaded from the backend. */
 export const DEFAULT_CONFIG: AppConfig = {
   serverUrl: 'http://localhost:8080',
+  profiles: [{ name: 'Default', serverUrl: 'http://localhost:8080' }],
+  activeProfile: 'Default',
   serverIntervalMs: 2000,
   slotsIntervalMs: 1000,
   hardwareIntervalMs: 2000,

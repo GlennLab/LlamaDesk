@@ -14,9 +14,17 @@ const HARDWARE_INTERVAL_MIN = 250
 const STORAGE_INTERVAL_MIN = 1000
 const RETENTION_MIN_HOURS = 1
 
+/** A single editable profile row. */
+interface ProfileValues {
+  name: string
+  serverUrl: string
+}
+
 /** Editable form state; numbers are held as strings so invalid input survives. */
 interface FormValues {
   serverUrl: string
+  profiles: ProfileValues[]
+  activeProfile: string
   serverIntervalMs: string
   slotsIntervalMs: string
   hardwareIntervalMs: string
@@ -30,6 +38,8 @@ type FieldErrors = Partial<Record<keyof FormValues, string>>
 function toForm(c: AppConfig): FormValues {
   return {
     serverUrl: c.serverUrl,
+    profiles: c.profiles.map((p) => ({ name: p.name, serverUrl: p.serverUrl })),
+    activeProfile: c.activeProfile,
     serverIntervalMs: String(c.serverIntervalMs),
     slotsIntervalMs: String(c.slotsIntervalMs),
     hardwareIntervalMs: String(c.hardwareIntervalMs),
@@ -53,6 +63,7 @@ function parseNumber(raw: string, min: number, minLabel: string): { value: numbe
 function validate(v: FormValues): { errors: FieldErrors; config: AppConfig | null } {
   const errors: FieldErrors = {}
 
+  // --- Server URL (effective URL of the active profile) ---
   const url = v.serverUrl.trim()
   if (url === '') {
     errors.serverUrl = 'Required'
@@ -67,6 +78,40 @@ function validate(v: FormValues): { errors: FieldErrors; config: AppConfig | nul
     }
   }
 
+  // --- Profiles ---
+  let profileError: string | null = null
+  if (v.profiles.length === 0) {
+    profileError = 'At least one profile is required'
+  } else {
+    const names = v.profiles.map((p) => p.name.trim())
+    if (names.some((n) => n === '')) {
+      profileError = 'Profile name is required'
+    } else if (new Set(names).size !== names.length) {
+      profileError = 'Profile names must be unique'
+    } else {
+      const badUrl = v.profiles.find((p) => {
+        try {
+          const parsed = new URL(p.serverUrl.trim())
+          return parsed.protocol !== 'http:' && parsed.protocol !== 'https:'
+        } catch {
+          return true
+        }
+      })
+      if (badUrl) profileError = 'Enter a valid URL'
+    }
+  }
+  if (profileError) errors.profiles = profileError
+
+  // --- Active profile ---
+  let activeError: string | null = null
+  if (v.activeProfile.trim() === '') {
+    activeError = 'Required'
+  } else if (!v.profiles.some((p) => p.name === v.activeProfile.trim())) {
+    activeError = 'Unknown profile'
+  }
+  if (activeError) errors.activeProfile = activeError
+
+  // --- Intervals (unchanged) ---
   const server = parseNumber(v.serverIntervalMs, SERVER_INTERVAL_MIN, `${SERVER_INTERVAL_MIN} ms`)
   if (server.error) errors.serverIntervalMs = server.error
   const slots = parseNumber(v.slotsIntervalMs, SLOTS_INTERVAL_MIN, `${SLOTS_INTERVAL_MIN} ms`)
@@ -84,6 +129,8 @@ function validate(v: FormValues): { errors: FieldErrors; config: AppConfig | nul
     errors,
     config: {
       serverUrl: url,
+      profiles: v.profiles.map((p) => ({ name: p.name.trim(), serverUrl: p.serverUrl.trim() })),
+      activeProfile: v.activeProfile.trim(),
       serverIntervalMs: server.value ?? DEFAULT_CONFIG.serverIntervalMs,
       slotsIntervalMs: slots.value ?? DEFAULT_CONFIG.slotsIntervalMs,
       hardwareIntervalMs: hardware.value ?? DEFAULT_CONFIG.hardwareIntervalMs,
@@ -98,14 +145,15 @@ interface FieldProps {
   label: string
   hint?: string
   error?: string
+  id?: string
   children: ReactNode
 }
 
 /** A labelled form control with inline validation feedback. */
-function Field({ label, hint, error, children }: FieldProps) {
+function Field({ label, hint, error, id, children }: FieldProps) {
   return (
     <div>
-      <label>{label}</label>
+      <label htmlFor={id}>{label}</label>
       {children}
       {error ? (
         <div className="error-message" style={{ color: 'var(--danger)', fontSize: 12, marginTop: 4 }}>
@@ -140,13 +188,86 @@ function Settings() {
     setDirty(true)
   }
 
+  /** Edits the server URL of the active profile, keeping `form.serverUrl` in sync. */
+  function updateServerUrl(value: string) {
+    setForm((f) => {
+      const next = [...f.profiles]
+      const activeIndex = next.findIndex((p) => p.name === f.activeProfile)
+      if (activeIndex >= 0) {
+        next[activeIndex] = { ...next[activeIndex], serverUrl: value }
+      }
+      return { ...f, serverUrl: value, profiles: next }
+    })
+    setDirty(true)
+  }
+
+  function updateProfileName(index: number, value: string) {
+    setForm((f) => {
+      const next = [...f.profiles]
+      next[index] = { ...next[index], name: value }
+      return { ...f, profiles: next }
+    })
+    setDirty(true)
+  }
+
+  function updateProfileUrl(index: number, value: string) {
+    setForm((f) => {
+      const next = [...f.profiles]
+      next[index] = { ...next[index], serverUrl: value }
+      const updated = { ...f, profiles: next }
+      if (next[index].name === f.activeProfile) {
+        updated.serverUrl = value
+      }
+      return updated
+    })
+    setDirty(true)
+  }
+
+  function switchActiveProfile(value: string) {
+    setForm((f) => {
+      const profile = f.profiles.find((p) => p.name === value)
+      return {
+        ...f,
+        activeProfile: value,
+        serverUrl: profile ? profile.serverUrl : f.serverUrl,
+      }
+    })
+    setDirty(true)
+  }
+
+  function addProfile() {
+    setForm((f) => {
+      const existing = new Set(f.profiles.map((p) => p.name))
+      let n = 1
+      while (existing.has(`Profile ${n}`)) n++
+      return {
+        ...f,
+        profiles: [...f.profiles, { name: `Profile ${n}`, serverUrl: 'http://localhost:8080' }],
+      }
+    })
+    setDirty(true)
+  }
+
+  function removeProfile(index: number) {
+    setForm((f) => ({
+      ...f,
+      profiles: f.profiles.filter((_, i) => i !== index),
+    }))
+    setDirty(true)
+  }
+
   async function onSave() {
     const result = validate(form)
     setErrors(result.errors)
     setNotice(null)
     if (result.config === null) return
+    // Frontend contract: serverUrl is the active profile's URL.
+    const configToSave = {
+      ...result.config,
+      serverUrl: form.profiles.find((p) => p.name === form.activeProfile)?.serverUrl ?? result.config.serverUrl,
+    }
     try {
-      await save(result.config)
+      await save(configToSave)
       setDirty(false)
       setNotice({ tone: 'ok', message: 'Settings saved.' })
     } catch (e) {
@@ -188,13 +309,60 @@ function Settings() {
 
       <Panel title="Settings" subtitle="Persisted and applied live">
         <div className="stack">
-          <Field label="Server URL" hint="http or https" error={errors.serverUrl}>
+          <Field label="Active profile" id="active-profile" error={errors.activeProfile}>
+            <select
+              id="active-profile"
+              value={form.activeProfile}
+              onChange={(e) => switchActiveProfile(e.target.value)}
+            >
+              {form.profiles.map((p) => (
+                <option key={p.name} value={p.name}>{p.name}</option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Server URL" id="server-url" hint="http or https" error={errors.serverUrl}>
             <input
+              id="server-url"
               type="text"
               value={form.serverUrl}
-              onChange={(e) => update('serverUrl', e.target.value)}
+              onChange={(e) => updateServerUrl(e.target.value)}
               spellCheck={false}
             />
+          </Field>
+
+          <Field label="Profiles" error={errors.profiles}>
+            {form.profiles.map((profile, index) => (
+              <div key={index} className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                <Field label="Name">
+                  <input
+                    type="text"
+                    value={profile.name}
+                    onChange={(e) => updateProfileName(index, e.target.value)}
+                    spellCheck={false}
+                  />
+                </Field>
+                <Field label="URL">
+                  <input
+                    type="text"
+                    value={profile.serverUrl}
+                    onChange={(e) => updateProfileUrl(index, e.target.value)}
+                    spellCheck={false}
+                  />
+                </Field>
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={form.profiles.length <= 1 || profile.name === form.activeProfile}
+                  onClick={() => removeProfile(index)}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button type="button" className="btn" onClick={addProfile}>
+              Add profile
+            </button>
           </Field>
 
           <div className="grid cols-2">

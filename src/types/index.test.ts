@@ -39,6 +39,8 @@ describe('DEFAULT_CONFIG', () => {
   it('should match the frozen contract exactly', () => {
     expect(DEFAULT_CONFIG).toEqual({
       serverUrl: 'http://localhost:8080',
+      profiles: [{ name: 'Default', serverUrl: 'http://localhost:8080' }],
+      activeProfile: 'Default',
       serverIntervalMs: 2000,
       slotsIntervalMs: 1000,
       hardwareIntervalMs: 2000,

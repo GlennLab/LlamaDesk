@@ -24,6 +24,8 @@ import {
 
 const CONFIG: AppConfig = {
   serverUrl: 'http://localhost:8080',
+  profiles: [{ name: 'Default', serverUrl: 'http://localhost:8080' }],
+  activeProfile: 'Default',
   serverIntervalMs: 2000,
   slotsIntervalMs: 1000,
   hardwareIntervalMs: 2000,

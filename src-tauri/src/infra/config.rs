@@ -4,6 +4,7 @@
 //! forgiving — a missing, unreadable, or corrupt file yields
 //! [`AppConfig::default`] rather than an error, so the app always starts.
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use reqwest::Url;
@@ -38,6 +39,26 @@ pub const MIN_RETENTION_HOURS: u64 = 1;
 /// pass can reach, so a mistyped value cannot retain history indefinitely.
 pub const MAX_RETENTION_HOURS: u64 = 24 * 365;
 
+/// A named server profile: a label plus the llama.cpp router URL it points to.
+///
+/// `AppConfig` keeps `server_url` as the effective URL of the active profile;
+/// profiles are the named source of truth for each endpoint.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerProfile {
+    /// Human-readable profile name.
+    pub name: String,
+    /// Base URL of the llama.cpp router for this profile.
+    pub server_url: String,
+}
+
+/// Default for [`AppConfig::profiles`] when a stored config omits the field:
+/// empty, so [`AppConfig::load`] can migrate the stored `serverUrl` into a
+/// `"Default"` profile.
+fn default_profiles() -> Vec<ServerProfile> {
+    Vec::new()
+}
+
 /// User-configurable application settings.
 ///
 /// Deserialization is tolerant of partial files: any missing field falls back to
@@ -45,8 +66,13 @@ pub const MAX_RETENTION_HOURS: u64 = 24 * 365;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AppConfig {
-    /// Base URL of the llama.cpp router to monitor.
+    /// Base URL of the llama.cpp router to monitor (effective URL of the active profile).
     pub server_url: String,
+    /// Named server profiles; the active profile's URL is mirrored in `server_url`.
+    #[serde(default = "default_profiles")]
+    pub profiles: Vec<ServerProfile>,
+    /// Name of the currently active profile.
+    pub active_profile: String,
     /// Polling interval for the server slice, in milliseconds.
     pub server_interval_ms: u64,
     /// Polling interval for the slots slice, in milliseconds.
@@ -63,6 +89,11 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             server_url: DEFAULT_SERVER_URL.to_string(),
+            profiles: vec![ServerProfile {
+                name: "Default".to_string(),
+                server_url: DEFAULT_SERVER_URL.to_string(),
+            }],
+            active_profile: "Default".to_string(),
             server_interval_ms: DEFAULT_SERVER_INTERVAL_MS,
             slots_interval_ms: DEFAULT_SLOTS_INTERVAL_MS,
             hardware_interval_ms: DEFAULT_HARDWARE_INTERVAL_MS,
@@ -90,7 +121,20 @@ impl AppConfig {
         };
 
         match serde_json::from_str::<AppConfig>(&contents) {
-            Ok(config) => config,
+            Ok(mut config) => {
+                // Migrate pre-profiles config files: synthesize a "Default" profile
+                // from the stored serverUrl so old config.json keeps working.
+                if config.profiles.is_empty() {
+                    config.profiles.push(ServerProfile {
+                        name: "Default".to_string(),
+                        server_url: config.server_url.clone(),
+                    });
+                    if config.active_profile.is_empty() {
+                        config.active_profile = "Default".to_string();
+                    }
+                }
+                config
+            }
             Err(error) => {
                 log::warn!(
                     "config: failed to parse {} ({error}); using defaults",
@@ -131,11 +175,58 @@ impl AppConfig {
     /// Normalises the configuration in place, clamping values to safe floors
     /// and ceiling.
     ///
-    /// Rejects a `server_url` that is not an absolute `http`/`https` URL (see
-    /// [`validate_server_url`]) and clamps `retention_hours` into
-    /// `[MIN_RETENTION_HOURS, MAX_RETENTION_HOURS]`.
+    /// Validates every profile URL (see [`validate_server_url`]), enforces
+    /// unique non-empty profile names, requires at least one profile, falls
+    /// back to the first profile when `active_profile` names nothing, and
+    /// normalises `server_url` to the active profile's URL. Clamps
+    /// `retention_hours` into `[MIN_RETENTION_HOURS, MAX_RETENTION_HOURS]`.
     pub fn validate(&mut self) -> Result<(), MonitorError> {
-        validate_server_url(&self.server_url)?;
+        // Every profile URL must be an absolute http/https URL.
+        for profile in &self.profiles {
+            validate_server_url(&profile.server_url)?;
+        }
+
+        // Profile names must be unique and non-empty.
+        let mut seen_names = HashSet::new();
+        for profile in &self.profiles {
+            if profile.name.is_empty() {
+                return Err(MonitorError::Config(
+                    "profile names must not be empty".to_string(),
+                ));
+            }
+            if !seen_names.insert(profile.name.clone()) {
+                return Err(MonitorError::Config(format!(
+                    "duplicate profile name `{}`",
+                    profile.name
+                )));
+            }
+        }
+
+        // At least one profile is required.
+        if self.profiles.is_empty() {
+            return Err(MonitorError::Config(
+                "at least one server profile is required".to_string(),
+            ));
+        }
+
+        // The active profile must name an existing profile; fall back to the
+        // first profile and re-normalise server_url when it does not.
+        if !self
+            .profiles
+            .iter()
+            .any(|profile| profile.name == self.active_profile)
+        {
+            self.active_profile = self.profiles[0].name.clone();
+        }
+
+        // Normalise server_url to the active profile's URL.
+        let active_url = self
+            .profiles
+            .iter()
+            .find(|profile| profile.name == self.active_profile)
+            .map(|profile| profile.server_url.clone())
+            .expect("active profile is guaranteed to exist after the fallback above");
+        self.server_url = active_url;
 
         self.server_interval_ms = self.server_interval_ms.max(MIN_SERVER_INTERVAL_MS);
         self.slots_interval_ms = self.slots_interval_ms.max(MIN_SLOTS_INTERVAL_MS);
@@ -197,27 +288,161 @@ mod tests {
     }
 
     #[test]
-    fn invalid_url_is_rejected() {
+    fn invalid_profile_url_is_rejected() {
         let mut config = AppConfig {
-            server_url: "localhost:8080".to_string(),
+            profiles: vec![ServerProfile {
+                name: "Default".to_string(),
+                server_url: "localhost:8080".to_string(),
+            }],
+            active_profile: "Default".to_string(),
             ..AppConfig::default()
         };
         assert!(config.validate().is_err());
 
         let mut config = AppConfig {
-            server_url: "ftp://example.com".to_string(),
+            profiles: vec![ServerProfile {
+                name: "Default".to_string(),
+                server_url: "ftp://example.com".to_string(),
+            }],
+            active_profile: "Default".to_string(),
             ..AppConfig::default()
         };
         assert!(config.validate().is_err());
     }
 
     #[test]
-    fn valid_url_passes_with_explicit_scheme() {
+    fn valid_profile_url_passes_with_explicit_scheme() {
         let mut config = AppConfig {
-            server_url: "https://example.com:9090".to_string(),
+            profiles: vec![ServerProfile {
+                name: "Default".to_string(),
+                server_url: "https://example.com:9090".to_string(),
+            }],
+            active_profile: "Default".to_string(),
             ..AppConfig::default()
         };
         assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn default_has_one_default_profile() {
+        let config = AppConfig::default();
+        assert_eq!(config.profiles.len(), 1);
+        assert_eq!(config.profiles[0].name, "Default");
+        assert_eq!(config.profiles[0].server_url, DEFAULT_SERVER_URL);
+        assert_eq!(config.active_profile, "Default");
+        assert_eq!(config.server_url, DEFAULT_SERVER_URL);
+    }
+
+    #[test]
+    fn validate_rejects_duplicate_profile_names() {
+        let mut config = AppConfig {
+            profiles: vec![
+                ServerProfile {
+                    name: "Default".to_string(),
+                    server_url: "http://localhost:8080".to_string(),
+                },
+                ServerProfile {
+                    name: "Default".to_string(),
+                    server_url: "http://localhost:9090".to_string(),
+                },
+            ],
+            active_profile: "Default".to_string(),
+            ..AppConfig::default()
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_empty_profile_name() {
+        let mut config = AppConfig {
+            profiles: vec![ServerProfile {
+                name: "".to_string(),
+                server_url: "http://localhost:8080".to_string(),
+            }],
+            active_profile: "".to_string(),
+            ..AppConfig::default()
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_empty_profiles() {
+        let mut config = AppConfig {
+            profiles: vec![],
+            active_profile: "Default".to_string(),
+            ..AppConfig::default()
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn validate_falls_back_to_first_profile_and_normalizes_url() {
+        let mut config = AppConfig {
+            server_url: "http://example.com:1234".to_string(),
+            profiles: vec![
+                ServerProfile {
+                    name: "First".to_string(),
+                    server_url: "http://localhost:8080".to_string(),
+                },
+                ServerProfile {
+                    name: "Second".to_string(),
+                    server_url: "http://localhost:9090".to_string(),
+                },
+            ],
+            active_profile: "Nonexistent".to_string(),
+            ..AppConfig::default()
+        };
+        config.validate().expect("valid config");
+
+        assert_eq!(config.active_profile, "First");
+        assert_eq!(config.server_url, "http://localhost:8080");
+    }
+
+    #[test]
+    fn validate_normalizes_server_url_to_active_profile() {
+        let mut config = AppConfig {
+            server_url: "http://example.com:1234".to_string(),
+            profiles: vec![ServerProfile {
+                name: "Default".to_string(),
+                server_url: "http://localhost:9090".to_string(),
+            }],
+            active_profile: "Default".to_string(),
+            ..AppConfig::default()
+        };
+        config.validate().expect("valid config");
+
+        assert_eq!(config.server_url, "http://localhost:9090");
+    }
+
+    #[test]
+    fn load_migrates_empty_profiles_from_server_url() {
+        let path = temp_path();
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("create dir");
+        std::fs::write(&path, r#"{"serverUrl":"http://example.com:1234"}"#).expect("write");
+
+        let config = AppConfig::load(&path);
+        assert_eq!(config.server_url, "http://example.com:1234");
+        assert_eq!(config.profiles.len(), 1);
+        assert_eq!(config.profiles[0].name, "Default");
+        assert_eq!(config.profiles[0].server_url, "http://example.com:1234");
+        assert_eq!(config.active_profile, "Default");
+    }
+
+    #[test]
+    fn load_keeps_existing_profiles() {
+        let path = temp_path();
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("create dir");
+        std::fs::write(
+            &path,
+            r#"{"serverUrl":"http://example.com:1234","profiles":[{"name":"Default","serverUrl":"http://localhost:8080"}],"activeProfile":"Default"}"#,
+        )
+        .expect("write");
+
+        let config = AppConfig::load(&path);
+        assert_eq!(config.server_url, "http://example.com:1234");
+        assert_eq!(config.profiles.len(), 1);
+        assert_eq!(config.profiles[0].name, "Default");
+        assert_eq!(config.active_profile, "Default");
     }
 
     #[test]
