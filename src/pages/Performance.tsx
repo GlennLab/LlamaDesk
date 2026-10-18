@@ -4,7 +4,7 @@ import { TimelineChart } from '../components/charts'
 import type { ChartSeries } from '../components/charts'
 import { EmptyState, ErrorBanner, Loading, Panel } from '../components/ui'
 import { useHistory } from '../hooks/useMonitor'
-import { formatMiB, formatRate, type GpuSample } from '../types'
+import { formatMiB, formatRate, formatTemperature, type GpuSample } from '../types'
 
 const MINUTE_MS = 60_000
 const DEFAULT_RANGE_MS = 60 * MINUTE_MS
@@ -126,6 +126,14 @@ function Performance() {
     })
   }
 
+  const temperatureSeries: ChartSeries[] = gpuIndices.map((idx, i) => ({
+    name: `GPU ${idx}`,
+    color: SERIES_COLORS[i % SERIES_COLORS.length],
+    data: gpu.samples
+      .filter((s) => s.gpuIndex === idx)
+      .map((s) => [s.timestampMs, s.temperatureC] as [number, number | null]),
+  }))
+
   return (
     <div className="stack">
       <Panel
@@ -206,6 +214,12 @@ function Performance() {
                 series={vramSeries}
                 yAxisName="GiB"
                 valueFormatter={(v) => formatMiB(v)}
+              />
+              <TimelineChart
+                title="GPU temperature"
+                series={temperatureSeries}
+                yAxisName="°C"
+                valueFormatter={(v) => formatTemperature(v)}
               />
             </div>
           ) : null}

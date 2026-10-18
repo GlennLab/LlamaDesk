@@ -47,7 +47,7 @@ describe('Performance', () => {
     // Assert
     expect(await screen.findByRole('heading', { name: 'Performance history' })).toBeTruthy()
     expect(screen.getByRole('combobox', { name: 'Time range' })).toBeTruthy()
-    await waitFor(() => expect(echartsMock).toHaveBeenCalledTimes(6))
+    await waitFor(() => expect(echartsMock).toHaveBeenCalledTimes(7))
     expect(chartTitles()).toEqual(
       expect.arrayContaining([
         'Prompt processing',
@@ -56,6 +56,7 @@ describe('Performance', () => {
         'Deferred requests',
         'GPU utilization',
         'GPU VRAM used',
+        'GPU temperature',
       ]),
     )
   })
