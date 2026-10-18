@@ -8,6 +8,7 @@ import type {
   GpuSample,
   MonitorSnapshot,
   ServerSample,
+  UpdateResult,
 } from '../types'
 
 /** Turns a Tauri rejection (usually an `Err(String)`) into a readable string. */
@@ -50,6 +51,11 @@ export async function getGpuHistory(fromMs: number, toMs: number): Promise<GpuSa
 /** Prunes history beyond retention; returns the number of rows removed. */
 export async function pruneHistory(): Promise<number> {
   return invoke<number>('prune_history')
+}
+
+/** Updates the llama.cpp server binary and reports old vs new version. */
+export async function updateLlama(): Promise<UpdateResult> {
+  return invoke<UpdateResult>('update_llama')
 }
 
 /** Subscribes to the `monitor:snapshot` event; resolves to an unlisten handle. */

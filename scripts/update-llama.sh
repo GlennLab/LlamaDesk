@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+#
+# update-llama.sh - pull and rebuild llama.cpp, reporting old and new versions.
+#
+# Usage: ./scripts/update-llama.sh [--clean|-c] [llama_dir]
+#
+# Environment:
+#   LLAMA_DIR           llama.cpp checkout directory (default: $PWD)
+set -euo pipefail
+
+# --- argument parsing --------------------------------------------------------
+CLEAN=0
+LLAMA_DIR="${LLAMA_DIR:-$PWD}"
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -c | --clean)
+      CLEAN=1
+      ;;
+    --clean=*)
+      CLEAN=1
+      ;;
+    -h | --help)
+      cat <<'EOF'
+Usage: update-llama.sh [--clean|-c] [llama_dir]
+
+Pulls the latest llama.cpp and rebuilds it with CUDA support, printing the
+new version on stdout.
+
+Options:
+  --clean, -c   Remove the build directory before configuring (full rebuild).
+  llama_dir     Path to the llama.cpp checkout (default: $LLAMA_DIR or $PWD).
+EOF
+      exit 0
+      ;;
+    *)
+      LLAMA_DIR="$1"
+      ;;
+  esac
+  shift
+done
+
+cd "$LLAMA_DIR"
+
+# --- locate the binary used to report the version ----------------------------
+select_binary() {
+  if [ -x "build/bin/llama-cli" ]; then
+    printf 'build/bin/llama-cli'
+  elif [ -x "build/bin/main" ]; then
+    printf 'build/bin/main'
+  else
+    printf ''
+  fi
+}
+
+# --- report the current version ----------------------------------------------
+OLD_BIN="$(select_binary)"
+OLD_VERSION=""
+if [ -n "$OLD_BIN" ]; then
+  OLD_VERSION="$("$OLD_BIN" --version 2>/dev/null | head -n 1)" || true
+fi
+echo "Current version: ${OLD_VERSION:-<unknown>}"
+
+# --- pull the latest sources -------------------------------------------------
+git fetch --quiet
+git pull --quiet
+
+# --- optional clean rebuild --------------------------------------------------
+if [ "$CLEAN" -eq 1 ]; then
+  rm -rf build
+fi
+
+# --- configure and build -----------------------------------------------------
+cmake -S . -B build \
+  -DGGML_CUDA=ON \
+  -DGGML_CUDA_FORCE_MMQ=ON \
+  -DGGML_CUDA_GRAPHS=ON \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_CUDA_ARCHITECTURES="86;120"
+
+make -C build -j"$(nproc)"
+
+# --- report the new version --------------------------------------------------
+NEW_BIN="$(select_binary)"
+NEW_VERSION=""
+if [ -n "$NEW_BIN" ]; then
+  NEW_VERSION="$("$NEW_BIN" --version 2>/dev/null | head -n 1)" || true
+fi
+echo "New version: ${NEW_VERSION:-<unknown>}"

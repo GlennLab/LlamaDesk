@@ -208,6 +208,14 @@ export interface ConnectionTest {
   modelCount?: number
 }
 
+/** Result of `update_llama`: old vs new llama.cpp version. */
+export interface UpdateResult {
+  success: boolean
+  oldVersion: string | null
+  newVersion: string | null
+  output: string
+}
+
 /** Configuration used until settings have loaded from the backend. */
 export const DEFAULT_CONFIG: AppConfig = {
   serverUrl: 'http://localhost:8080',

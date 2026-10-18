@@ -12,6 +12,7 @@ import type {
   GpuSample,
   MonitorSnapshot,
   ServerSample,
+  UpdateResult,
 } from '../types'
 import { makeSnapshot } from './fixtures'
 
@@ -25,6 +26,7 @@ export const api = {
   getServerHistory: vi.fn<(fromMs: number, toMs: number) => Promise<ServerSample[]>>(),
   getGpuHistory: vi.fn<(fromMs: number, toMs: number) => Promise<GpuSample[]>>(),
   pruneHistory: vi.fn<() => Promise<number>>(),
+  updateLlama: vi.fn<() => Promise<UpdateResult>>(),
 }
 
 /** Restores every spy and installs inert defaults. Call in `beforeEach`. */
@@ -37,6 +39,12 @@ export function resetApi(): void {
   api.getServerHistory.mockReset().mockResolvedValue([])
   api.getGpuHistory.mockReset().mockResolvedValue([])
   api.pruneHistory.mockReset()
+  api.updateLlama.mockReset().mockResolvedValue({
+    success: false,
+    oldVersion: null,
+    newVersion: null,
+    output: '',
+  })
 }
 
 /**

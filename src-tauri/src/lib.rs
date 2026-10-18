@@ -73,6 +73,7 @@ pub fn run() {
             app::commands::get_server_history,
             app::commands::get_gpu_history,
             app::commands::prune_history,
+            app::commands::update_llama,
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");
