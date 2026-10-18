@@ -1,7 +1,8 @@
 import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Dashboard from './Dashboard'
-import { resetApi } from '../test/api-stub'
+import { api, resetApi } from '../test/api-stub'
 import { emptySnapshot, representativeSnapshot } from '../test/fixtures'
 import { renderWithSnapshot, renderWithSnapshotError } from '../test/snapshot-test-utils'
 
@@ -89,5 +90,36 @@ describe('Dashboard', () => {
 
     // Assert
     expect(await screen.findByText('No GPUs were detected.')).toBeTruthy()
+  })
+
+  it('should show old and new version after updating llama.cpp', async () => {
+    // Arrange
+    api.updateLlama.mockResolvedValue({
+      success: true,
+      oldVersion: 'llama.cpp b-old (test)',
+      newVersion: 'llama.cpp b-new (test)',
+      output: 'pulled and rebuilt',
+    })
+    renderWithSnapshot(<Dashboard />, representativeSnapshot())
+
+    // Act
+    await userEvent.click(await screen.findByRole('button', { name: 'Update llama.cpp' }))
+
+    // Assert
+    expect(await screen.findByText('llama.cpp b-old (test)')).toBeTruthy()
+    expect(await screen.findByText('llama.cpp b-new (test)')).toBeTruthy()
+    expect(screen.getByText('Update succeeded')).toBeTruthy()
+  })
+
+  it('should show an error when the update fails', async () => {
+    // Arrange
+    api.updateLlama.mockRejectedValue('script not found')
+    renderWithSnapshot(<Dashboard />, representativeSnapshot())
+
+    // Act
+    await userEvent.click(await screen.findByRole('button', { name: 'Update llama.cpp' }))
+
+    // Assert
+    expect(await screen.findByText('Update failed: script not found')).toBeTruthy()
   })
 })
