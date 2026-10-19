@@ -43,6 +43,8 @@ pub struct GpuSample {
     pub memory_total_mib: Option<u64>,
     /// Core temperature in degrees Celsius, when reported.
     pub temperature_c: Option<f64>,
-    /// Instantaneous power draw in Watts, when reported.
-    pub power_draw_w: Option<f64>,
-}
+      /// Instantaneous power draw in Watts, when reported.
+      pub power_draw_w: Option<f64>,
+      /// Fan speed as percentage of maximum, when reported.
+      pub fan_speed_percent: Option<f64>,
+  }

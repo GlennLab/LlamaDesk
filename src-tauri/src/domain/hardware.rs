@@ -20,6 +20,8 @@ pub struct GpuStats {
     pub temperature_c: Option<f64>,
     /// Instantaneous power draw in Watts, when reported.
     pub power_draw_w: Option<f64>,
-    /// Enforced power limit in Watts, when reported.
-    pub power_limit_w: Option<f64>,
-}
+      /// Enforced power limit in Watts, when reported.
+      pub power_limit_w: Option<f64>,
+      /// Fan speed as percentage of maximum, when reported by the driver.
+      pub fan_speed_percent: Option<f64>,
+  }

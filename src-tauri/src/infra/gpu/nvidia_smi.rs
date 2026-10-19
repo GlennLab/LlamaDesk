@@ -20,7 +20,7 @@ pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// Comma-separated fields requested from `nvidia-smi`.
 const QUERY_FIELDS: &str =
-    "index,name,utilization.gpu,memory.total,memory.used,temperature.gpu,power.draw,power.limit";
+      "index,name,utilization.gpu,memory.total,memory.used,temperature.gpu,power.draw,power.limit,fan.speed";
 
 const UNKNOWN: u8 = 0;
 const AVAILABLE: u8 = 1;
@@ -168,10 +168,11 @@ fn parse_line(line: &str) -> Option<GpuStats> {
         utilization_percent: columns.get(2).copied().and_then(parse_f64),
         memory_total_mib: columns.get(3).copied().and_then(parse_u64),
         memory_used_mib: columns.get(4).copied().and_then(parse_u64),
-        temperature_c: columns.get(5).copied().and_then(parse_f64),
-        power_draw_w: columns.get(6).copied().and_then(parse_f64),
-        power_limit_w: columns.get(7).copied().and_then(parse_f64),
-    })
+          temperature_c: columns.get(5).copied().and_then(parse_f64),
+          power_draw_w: columns.get(6).copied().and_then(parse_f64),
+          power_limit_w: columns.get(7).copied().and_then(parse_f64),
+          fan_speed_percent: columns.get(8).copied().and_then(parse_f64),
+      })
 }
 
 /// Parses a numeric field, treating `N/A`, `[N/A]`, and blanks as absent.
@@ -213,8 +214,8 @@ fn command_exists(program: &str) -> bool {
 mod tests {
     use super::*;
 
-    const SAMPLE: &str = "0, NVIDIA GeForce RTX 3090 Ti, 24, 24564, 21958, 52, 206.03, 480.00\r\n\
-                          1, NVIDIA RTX PRO 5000 Blackwell, 77, 48935, 45720, 70, 207.76, 300.00\r\n";
+      const SAMPLE: &str = "0, NVIDIA GeForce RTX 3090 Ti, 24, 24564, 21958, 52, 206.03, 480.00, 30\r\n\
+                            1, NVIDIA RTX PRO 5000 Blackwell, 77, 48935, 45720, 70, 207.76, 300.00, 45\r\n";
 
     #[test]
     fn parses_two_gpus() {
@@ -226,12 +227,14 @@ mod tests {
         assert_eq!(gpus[0].memory_total_mib, Some(24564));
         assert_eq!(gpus[0].memory_used_mib, Some(21958));
         assert_eq!(gpus[0].temperature_c, Some(52.0));
-        assert_eq!(gpus[0].power_draw_w, Some(206.03));
-        assert_eq!(gpus[0].power_limit_w, Some(480.0));
-        assert_eq!(gpus[1].index, 1);
-        assert_eq!(gpus[1].name, "NVIDIA RTX PRO 5000 Blackwell");
-        assert_eq!(gpus[1].utilization_percent, Some(77.0));
-    }
+          assert_eq!(gpus[0].power_draw_w, Some(206.03));
+          assert_eq!(gpus[0].power_limit_w, Some(480.0));
+          assert_eq!(gpus[0].fan_speed_percent, Some(30.0));
+          assert_eq!(gpus[1].index, 1);
+          assert_eq!(gpus[1].name, "NVIDIA RTX PRO 5000 Blackwell");
+          assert_eq!(gpus[1].utilization_percent, Some(77.0));
+          assert_eq!(gpus[1].fan_speed_percent, Some(45.0));
+      }
 
     #[test]
     fn treats_na_fields_as_none() {

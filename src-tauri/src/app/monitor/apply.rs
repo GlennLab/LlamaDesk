@@ -187,7 +187,8 @@ pub fn gpu_sample_from(gpu: &GpuStats, timestamp_ms: i64) -> GpuSample {
         utilization_percent: gpu.utilization_percent,
         memory_used_mib: gpu.memory_used_mib,
         memory_total_mib: gpu.memory_total_mib,
-        temperature_c: gpu.temperature_c,
-        power_draw_w: gpu.power_draw_w,
-    }
+          temperature_c: gpu.temperature_c,
+          power_draw_w: gpu.power_draw_w,
+          fan_speed_percent: gpu.fan_speed_percent,
+      }
 }

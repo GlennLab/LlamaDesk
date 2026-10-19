@@ -200,6 +200,7 @@ mod tests {
             temperature_c: None,
             power_draw_w: None,
             power_limit_w: None,
+            fan_speed_percent: None,
         }
     }
 

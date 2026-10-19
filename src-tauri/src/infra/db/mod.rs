@@ -63,9 +63,10 @@ fn map_gpu_row(row: SqliteRow) -> Result<GpuSample, MonitorError> {
         utilization_percent: column(&row, "utilization_percent")?,
         memory_used_mib: column(&row, "memory_used_mib")?,
         memory_total_mib: column(&row, "memory_total_mib")?,
-        temperature_c: column(&row, "temperature_c")?,
-        power_draw_w: column(&row, "power_draw_w")?,
-    })
+          temperature_c: column(&row, "temperature_c")?,
+          power_draw_w: column(&row, "power_draw_w")?,
+          fan_speed_percent: column(&row, "fan_speed_rpm")?,
+      })
 }
 
 /// A [`HistoryStore`] backed by a file-based SQLite database in WAL mode.
@@ -140,18 +141,19 @@ impl HistoryStore for SqliteStore {
         sqlx::query(
             "INSERT INTO gpu_samples (\
                 timestamp_ms, gpu_index, utilization_percent, \
-                memory_used_mib, memory_total_mib, temperature_c, power_draw_w\
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        )
-        .bind(sample.timestamp_ms)
-        .bind(sample.gpu_index)
-        .bind(sample.utilization_percent)
-        // SQLite stores integers as `i64`; `u64` is not encodable, so cast the
-        // MiB counts (always far below `i64::MAX`).
-        .bind(sample.memory_used_mib.map(|value| value as i64))
-        .bind(sample.memory_total_mib.map(|value| value as i64))
-        .bind(sample.temperature_c)
-        .bind(sample.power_draw_w)
+                memory_used_mib, memory_total_mib, temperature_c, power_draw_w, fan_speed_rpm\
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+          )
+          .bind(sample.timestamp_ms)
+          .bind(sample.gpu_index)
+          .bind(sample.utilization_percent)
+          // SQLite stores integers as `i64`; `u64` is not encodable, so cast the
+          // MiB counts (always far below `i64::MAX`).
+          .bind(sample.memory_used_mib.map(|value| value as i64))
+          .bind(sample.memory_total_mib.map(|value| value as i64))
+          .bind(sample.temperature_c)
+          .bind(sample.power_draw_w)
+          .bind(sample.fan_speed_percent)
         .execute(&self.pool)
         .await
         .map_err(|error| storage_error("failed to insert gpu sample", error))?;
@@ -189,8 +191,8 @@ impl HistoryStore for SqliteStore {
     ) -> Result<Vec<GpuSample>, MonitorError> {
         let rows = sqlx::query(
             "SELECT timestamp_ms, gpu_index, utilization_percent, \
-                    memory_used_mib, memory_total_mib, temperature_c, power_draw_w \
-             FROM gpu_samples \
+                      memory_used_mib, memory_total_mib, temperature_c, power_draw_w, fan_speed_rpm \
+               FROM gpu_samples \
              WHERE timestamp_ms BETWEEN ?1 AND ?2 \
              ORDER BY timestamp_ms ASC \
              LIMIT ?3",
@@ -265,6 +267,7 @@ mod tests {
             memory_total_mib: Some(24564),
             temperature_c: None,
             power_draw_w: Some(120.5),
+            fan_speed_percent: None,
         }
     }
 
@@ -441,6 +444,7 @@ mod tests {
             memory_total_mib: None,
             temperature_c: None,
             power_draw_w: None,
+            fan_speed_percent: None,
         };
         store.insert_gpu_sample(&sample).await.expect("insert");
 

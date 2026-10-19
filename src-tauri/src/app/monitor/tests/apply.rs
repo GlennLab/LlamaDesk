@@ -265,6 +265,7 @@ fn apply_hardware_result_failure_keeps_previous_gpus() {
             temperature_c: None,
             power_draw_w: None,
             power_limit_w: None,
+            fan_speed_percent: None,
         }],
         ..MonitorSnapshot::default()
     };
