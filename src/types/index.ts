@@ -122,6 +122,8 @@ export interface GpuStats {
   temperatureC: number | null
   powerDrawW: number | null
   powerLimitW: number | null
+  /** Fan speed as a percent of the card's maximum target speed. */
+  fanSpeedPercent?: number | null
 }
 
 // ---------------------------------------------------------------------------
@@ -149,6 +151,8 @@ export interface GpuSample {
   memoryTotalMib: number | null
   temperatureC: number | null
   powerDrawW: number | null
+  /** Fan speed as a percent of the card's maximum target speed. */
+  fanSpeedPercent?: number | null
 }
 
 // ---------------------------------------------------------------------------

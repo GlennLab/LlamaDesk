@@ -134,6 +134,29 @@ function Performance() {
       .map((s) => [s.timestampMs, s.temperatureC] as [number, number | null]),
   }))
 
+  const fanSeries: ChartSeries[] = gpuIndices.map((idx, i) => ({
+    name: `GPU ${idx}`,
+    color: SERIES_COLORS[i % SERIES_COLORS.length],
+    data: gpu.samples
+      .filter((s) => s.gpuIndex === idx)
+      .map((s) => [s.timestampMs, s.fanSpeedPercent] as [number, number | null]),
+  }))
+  if (gpu.samples.length > 0) {
+    fanSeries.push({
+      name: 'All GPUs (avg)',
+      color: '#9ca5b0',
+      data: sortedTs.map((ts) => {
+        const values = gpuByTs.get(ts)!
+          .map((s) => s.fanSpeedPercent)
+          .filter((v): v is number => v !== null)
+        return [
+          ts,
+          values.length > 0 ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : null,
+        ]
+      }),
+    })
+  }
+
   return (
     <div className="stack">
       <Panel
@@ -214,6 +237,12 @@ function Performance() {
                 series={vramSeries}
                 yAxisName="GiB"
                 valueFormatter={(v) => formatMiB(v)}
+              />
+              <TimelineChart
+                title="GPU fan speed"
+                series={fanSeries}
+                yAxisName="%"
+                valueFormatter={(v) => `${v.toFixed(0)}%`}
               />
               <TimelineChart
                 title="GPU temperature"
