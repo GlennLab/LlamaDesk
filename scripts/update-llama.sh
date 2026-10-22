@@ -62,8 +62,10 @@ fi
 echo "Current version: ${OLD_VERSION:-<unknown>}"
 
 # --- pull the latest sources -------------------------------------------------
-git fetch --quiet
-git pull --quiet
+git fetch origin --quiet
+# Ensure local master tracks origin/master so future pulls do not need --set-upstream
+git branch --set-upstream-to=origin/master master 2>/dev/null || true
+git pull --ff-only origin master --quiet
 
 # --- optional clean rebuild --------------------------------------------------
 if [ "$CLEAN" -eq 1 ]; then
