@@ -164,6 +164,24 @@ pub async fn prune_history(state: State<'_, AppState>) -> Result<u64, String> {
     store.prune(cutoff).await.map_err(|error| error.to_string())
 }
 
+/// Returns the repository root by walking up from the current executable.
+///
+/// In dev mode the binary lives at `<repo>/target/debug/llamadesk`; walking up
+/// three levels lands on the repo root where `scripts/` lives. This is
+/// launch-directory independent, unlike [`std::env::current_dir`]. When the
+/// exe location cannot be determined (e.g. packaged installs), returns `None`
+/// so callers can fall back to the working directory.
+fn resolve_repo_root() -> Option<PathBuf> {
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| {
+            exe.parent()
+                .and_then(|dir| dir.parent())
+                .and_then(|dir| dir.parent())
+                .map(|root| root.to_path_buf())
+        })
+}
+
 /// Runs the llama.cpp update script and reports the old vs new version.
 ///
 /// Resolves `LLAMA_DIR` (default `$HOME/llama.cpp`) and the script path
@@ -179,9 +197,13 @@ pub async fn update_llama(state: State<'_, AppState>) -> Result<UpdateResult, St
     let script = std::env::var("LLAMA_UPDATE_SCRIPT")
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
-            std::env::current_dir()
-                .unwrap_or_default()
-                .join("scripts/update-llama.sh")
+            resolve_repo_root()
+                .map(|root| root.join("scripts/update-llama.sh"))
+                .unwrap_or_else(|| {
+                    std::env::current_dir()
+                        .unwrap_or_default()
+                        .join("scripts/update-llama.sh")
+                })
         });
     tauri::async_runtime::spawn_blocking(move || update_llama_inner(&llama_dir, &script))
         .await
