@@ -221,8 +221,9 @@ fn update_llama_inner(llama_dir: &Path, script: &Path) -> Result<UpdateResult, S
 
     let binary = llama_dir.join("build/bin/llama-cli");
     let fallback = llama_dir.join("build/bin/main");
+    let server_binary = llama_dir.join("build/bin/llama-server");
 
-    let old_version = read_version(&binary, &fallback).ok();
+    let old_version = read_version(&binary, &fallback, &server_binary).ok();
 
     let output = std::process::Command::new("bash")
         .arg(script)
@@ -237,7 +238,7 @@ fn update_llama_inner(llama_dir: &Path, script: &Path) -> Result<UpdateResult, S
     .trim()
     .to_string();
 
-    let new_version = read_version(&binary, &fallback).ok();
+    let new_version = read_version(&binary, &fallback, &server_binary).ok();
 
     Ok(UpdateResult {
         success,
@@ -249,11 +250,11 @@ fn update_llama_inner(llama_dir: &Path, script: &Path) -> Result<UpdateResult, S
 
 /// Returns the first non-empty trimmed line of `binary --version`.
 ///
-/// Tries `primary` then `fallback`, skipping binaries that do not exist.
-/// Returns an error when neither binary produces a version line.
-fn read_version(primary: &Path, fallback: &Path) -> Result<String, String> {
+/// Tries `primary`, then `fallback`, then `server`, skipping binaries that
+/// do not exist. Returns an error when none of them produces a version line.
+fn read_version(primary: &Path, fallback: &Path, server: &Path) -> Result<String, String> {
     let mut spawn_error: Option<String> = None;
-    for binary in [primary, fallback] {
+    for binary in [primary, fallback, server] {
         if !binary.exists() {
             continue;
         }
@@ -274,15 +275,17 @@ fn read_version(primary: &Path, fallback: &Path) -> Result<String, String> {
     Err(match spawn_error {
         Some(error) => {
             format!(
-                "no version output from {} or {}: {error}",
+                "no version output from {}, {}, or {}: {error}",
                 primary.display(),
-                fallback.display()
+                fallback.display(),
+                server.display()
             )
         }
         None => format!(
-            "no version output from {} or {}",
+            "no version output from {}, {}, or {}",
             primary.display(),
-            fallback.display()
+            fallback.display(),
+            server.display()
         ),
     })
 }
@@ -341,8 +344,9 @@ mod tests {
             "#!/usr/bin/env bash\necho ''\necho 'llama.cpp b1234'\necho 'extra'\n",
         );
         let fallback = dir.join("build/bin/main");
+        let server = dir.join("build/bin/llama-server");
 
-        let version = read_version(&bin, &fallback).expect("version from primary");
+        let version = read_version(&bin, &fallback, &server).expect("version from primary");
 
         assert_eq!(version, "llama.cpp b1234");
     }
@@ -352,12 +356,13 @@ mod tests {
         let dir = unique_temp_dir();
         let primary = dir.join("build/bin/llama-cli");
         let fallback = dir.join("build/bin/main");
+        let server = dir.join("build/bin/llama-server");
         make_script(
             &fallback,
             "#!/usr/bin/env bash\necho 'llama.cpp fallback-9'\n",
         );
 
-        let version = read_version(&primary, &fallback).expect("version from fallback");
+        let version = read_version(&primary, &fallback, &server).expect("version from fallback");
 
         assert_eq!(version, "llama.cpp fallback-9");
     }
@@ -367,8 +372,9 @@ mod tests {
         let dir = unique_temp_dir();
         let primary = dir.join("build/bin/llama-cli");
         let fallback = dir.join("build/bin/main");
+        let server = dir.join("build/bin/llama-server");
 
-        let error = read_version(&primary, &fallback).unwrap_err();
+        let error = read_version(&primary, &fallback, &server).unwrap_err();
 
         assert!(error.contains("no version output"));
     }
